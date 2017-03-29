@@ -16,6 +16,7 @@ import networkx as nx
 from sklearn import cluster, covariance, manifold
 from matplotlib import collections
 import seaborn as sns
+from matplotlib import colors
 
 def return_top_pca_gene(by_cell_matrix, range_genes = None):
     gene_number = 100
@@ -37,7 +38,7 @@ def return_top_pca_gene(by_cell_matrix, range_genes = None):
     new_cell_matrix = by_cell_matrix.ix[top_pca_list[start_num:end_num_genes],:]
     return new_cell_matrix.transpose(), top_pca_list[start_num:end_num_genes]
 
-def save_network_graph(matrix, labels, filename, title, scale=8, node_weight = None, layout = "circular", weight = lambda x: abs(4*x)**(2.5)):
+def save_network_graph(matrix, labels, filename, title, scale=8, node_weight = None,node_color='black', layout = "circular", weight = lambda x: abs(4*x)**(2.5)):
     labels = dict( zip( range( len(labels) ), labels) )
     d = matrix.shape[0]
     D = nx.Graph(matrix)
@@ -63,15 +64,15 @@ def save_network_graph(matrix, labels, filename, title, scale=8, node_weight = N
                     edge_color= "green", width=width_large, )
     nx.draw_networkx_edges(D,pos,edgelist=esmall,width=width_small,alpha=0.5,edge_color="red",style='dashed')
     if node_weight == None:
-        nx.draw_networkx_nodes( D, pos, ax=ax, node_size = 1, node_color="black")
+        nx.draw_networkx_nodes( D, pos, ax=ax, node_size = 1, node_color=node_color)
     else:
-        nx.draw_networkx_nodes( D, pos, ax=ax, node_size = node_weight, node_color="black", alpha=0.4)
+        nx.draw_networkx_nodes( D, pos, ax=ax, node_size = node_weight, node_color=node_color, alpha=0.4)
     nx.draw_networkx_labels( D, pos,font_size=18, labels = labels, ax = ax)
     plt.axis("off")
     plt.title(title)
     plt.savefig(filename, bbox_inches="tight")
 
-def make_pcor_network(qt5_data):
+def read_qt5_input(qt5_data):
     path_to_file = qt5_data.filepath.text()
 
     #load file gene
@@ -86,11 +87,14 @@ def make_pcor_network(qt5_data):
     df_by_gene1 = pd.DataFrame(by_gene, columns=gene_list, index=cell_list)
     df_by_cell1 = pd.DataFrame(by_cell, columns=cell_list, index=gene_list)
     log2_df_cell = np.log2(df_by_cell1+1)
-    alpha=0.4
-    keep_genes = []
+
     num_iterations = int(qt5_data.iterations.text())
     gene_index_list = list(range(0,((num_iterations+1)*100), 100))
+    return log2_df_cell, num_iterations, gene_index_list
 
+def find_top_genes_from_pcor_network(log2_df_cell, num_iterations, gene_index_list):
+    alpha=0.4
+    keep_genes = []
     for iter_genes in range(0,num_iterations):
         top_pca_matrix, top_pca_genes = return_top_pca_gene(log2_df_cell,range_genes=[gene_index_list[max(0,iter_genes-1)],gene_index_list[iter_genes+1]])
         mean_expr_dict = {}
@@ -148,13 +152,13 @@ def find_node_weight(top_matrix, final_gene_list):
     node_weights =[int(500*round(v)) for k,v in mean_expr_dict.items()]
     return node_weights
 
-def make_graphlasso(top_matrix, final_gene_list):
+def make_graphlasso(top_matrix, name_list):
     gl = covariance.GraphLassoCV()
     gene_data = scale(top_matrix.as_matrix())
 
     gl.fit(gene_data)
 
-    names = np.array(final_gene_list)
+    names = np.array(name_list)
 
     node_position_model = manifold.LocallyLinearEmbedding(
         n_components=2, eigen_solver='dense', n_neighbors=7)
@@ -163,7 +167,11 @@ def make_graphlasso(top_matrix, final_gene_list):
 
     return gl, embedding, names
 
-def plot_networks(gl, embedding, names, node_weights, qt5_data):
+def plot_networks(gl, embedding, names, node_weights, qt5_data, gene_matrix=True):
+    if gene_matrix:
+        fig_type = "gene"
+    else:
+        fig_type = "cell"
     _, labels = cluster.affinity_propagation(gl.covariance_)
     n_labels = labels.max()
     path_to_file = qt5_data.filepath.text()
@@ -237,21 +245,52 @@ def plot_networks(gl, embedding, names, node_weights, qt5_data):
              embedding[1].max() + .03 * embedding[1].ptp())
 
 
-    plt.savefig(os.path.join(os.path.dirname(path_to_file),'linedraw_graph.pdf'),bbox_inches="tight")
+    plt.savefig(os.path.join(os.path.dirname(path_to_file),'linedraw_graph_'+fig_type+'.pdf'),bbox_inches="tight")
 
     prec_sp = gl.precision_
 
-    save_network_graph( -prec_sp + np.diag( np.diagonal( prec_sp) ), names, os.path.join(os.path.dirname(path_to_file),"LargeNetworkNo_SP.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=node_weights, weight = lambda x: abs(5*x)**(2.5))
-    save_network_graph( gl.covariance_, names, os.path.join(os.path.dirname(path_to_file),"cov_diagram.pdf"), node_weight=node_weights, title="cov_test", scale = 8, layout = "spring" )
-    save_network_graph( gl.precision_, names, os.path.join(os.path.dirname(path_to_file),"precision.pdf") , title="Precision Matrix Network", layout="spring", node_weight= node_weights)
+    save_network_graph( -prec_sp + np.diag( np.diagonal( prec_sp) ), names, os.path.join(os.path.dirname(path_to_file),"LargeNetworkNo_SP_"+fig_type+".pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=node_weights, weight = lambda x: abs(5*x)**(2.5))
+    save_network_graph( gl.covariance_, names, os.path.join(os.path.dirname(path_to_file),"cov_diagram_"+fig_type+".pdf"), node_weight=node_weights, title="cov_test", scale = 8, layout = "spring" )
+    save_network_graph( gl.precision_, names, os.path.join(os.path.dirname(path_to_file),"precision_"+fig_type+".pdf") , title="Precision Matrix Network", layout="spring", node_weight= node_weights)
 
-def community_cluster(cov_sp, symbols):
-	G = nx.Graph( cov_sp )
-	partition = community.best_partition( G )
-	for i in set(partition.values() ):
-		print("Community: ",i)
-		members = [ symbols[node] for node  in partition.keys() if partition[node] == i]
-		print(members)
+def community_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterations = 5):
+    path_to_file = qt5_data.filepath.text()
+
+    all_color_list = list(colors.cnames.keys())
+    cell_color_list = ['r', 'g', 'b', 'orange', 'purple','m','y','k']+all_color_list
+    colors_to_remove = ['gray', 'white', 'oldlace', 'silver', 'lightgrey', 'grey', 'linen', 'snow', 'dimgray', 'slategray', 'dimgrey', 'lightslategrey', 'antiquewhite', 'beige']
+    cell_color_list = [color for color in cell_color_list if color not in colors_to_remove]
+
+    communities_below_min = True
+    cluster_iterations = 0
+
+    symbols = top_matrix_cell.columns.tolist()
+    gl_cell, embedding_cell, names_cell = make_graphlasso(top_matrix_cell, top_matrix_cell.columns.tolist())
+    labels = dict( zip( range( len(symbols) ), symbols) )
+    prec_sp = gl_cell.precision_
+    matrix1 = -prec_sp + np.diag( np.diagonal( prec_sp) )
+    G = nx.Graph( matrix1)
+    partition = community.best_partition( G )
+    values = [partition.get(node) for node in G.nodes()]
+    node_colors = [cell_color_list[i] for i in values]
+    communities_below_min = False
+    good_communities = []
+    for i in set(partition.values() ):
+        print("Community: ",i)
+        members = [ symbols[node] for node  in partition.keys() if partition[node] == i]
+        print(members)
+        if len(members) <=min_cluster_size:
+            communities_below_min = True
+        else:
+            good_communities.extend(members)
+    if communities_below_min:
+        cluster_iterations +=1
+        if cluster_iterations < max_iterations:
+            community_cluster(top_matrix_cell[good_communities], qt5_data)
+        else:
+            save_network_graph(matrix1, names_cell, os.path.join(os.path.dirname(path_to_file),"community_cell.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=find_node_weight(top_matrix_cell,names_cell),node_color=node_colors, weight = lambda x: abs(5*x)**(2.5))
+    else:
+        save_network_graph(matrix1, names_cell, os.path.join(os.path.dirname(path_to_file),"community_cell.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=find_node_weight(top_matrix_cell,names_cell),node_color=node_colors, weight = lambda x: abs(5*x)**(2.5))
 
 
 def affinity_cluster( cov_sp, symbols):
