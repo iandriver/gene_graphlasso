@@ -33,7 +33,7 @@ class Graph_UI(QWidget):
         self.iterations = QLineEdit(self)
         #self.le.move(20, 10)
         self.iterations.setFixedWidth(50)
-        self.iterations.setText('0')
+        self.iterations.setText('1')
 
         self.qbtn = QPushButton('Run', self)
         self.qbtn.clicked.connect(self.get_itertext)
