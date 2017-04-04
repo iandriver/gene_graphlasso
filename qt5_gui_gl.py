@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import (QWidget,QMainWindow, QTextEdit,
-    QAction, QFileDialog, QApplication, QPushButton, QLineEdit, QGridLayout, QCheckBox, QInputDialog)
+    QAction, QFileDialog, QApplication, QPushButton, QLineEdit, QGridLayout, QCheckBox, QInputDialog, QLabel)
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QCoreApplication
 
@@ -30,6 +30,7 @@ class Graph_UI(QWidget):
         self.filepath.setFixedWidth(300)
         self.filepath.setText('')
 
+        self.iter_label = QLabel("# of search iterations: ")
         self.iterations = QLineEdit(self)
         #self.le.move(20, 10)
         self.iterations.setFixedWidth(50)
@@ -43,7 +44,8 @@ class Graph_UI(QWidget):
 
         grid.addWidget(self.filepath, 0,0)
         grid.addWidget(self.btn, 1,0)
-        grid.addWidget(self.iterations, 2,0)
+        grid.addWidget(self.iter_label, 2,0)
+        grid.addWidget(self.iterations, 2,1)
         grid.addWidget(self.qbtn, 3,0)
 
         self.setLayout(grid)
