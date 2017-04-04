@@ -76,7 +76,10 @@ def read_qt5_input(qt5_data):
     path_to_file = qt5_data.filepath.text()
 
     #load file gene
-    by_cell = pd.DataFrame.from_csv(path_to_file, sep='\t')
+    try:
+        by_cell = pd.DataFrame.from_csv(path_to_file, sep='\t')
+    except FileNotFoundError:
+        sys.exit('Please select a valid file before running.')
     by_gene = by_cell.transpose()
     #create list of genes
     gene_list = by_cell.index.tolist()
@@ -245,7 +248,7 @@ def plot_networks(gl, embedding, names, node_weights, qt5_data, gene_matrix=True
              embedding[1].max() + .03 * embedding[1].ptp())
 
 
-    plt.savefig(os.path.join(os.path.dirname(path_to_file),'linedraw_graph_'+fig_type+'.pdf'),bbox_inches="tight")
+    #plt.savefig(os.path.join(os.path.dirname(path_to_file),'linedraw_graph_'+fig_type+'.pdf'),bbox_inches="tight")
 
     prec_sp = gl.precision_
 
@@ -293,14 +296,45 @@ def community_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterati
         save_network_graph(matrix1, names_cell, os.path.join(os.path.dirname(path_to_file),"community_cell.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=find_node_weight(top_matrix_cell,names_cell),node_color=node_colors, weight = lambda x: abs(5*x)**(2.5))
 
 
-def affinity_cluster( cov_sp, symbols):
-	print("Affinity cluster")
-	ap = cluster.AffinityPropagation()
-	ap.fit( cov_sp )
-	labels = np.array(  ap.labels_ )
-	for i in set(ap.labels_):
-		print("Community: ",i)
-		members = [ symbols[node] for node in np.nonzero( labels == i)[0]]
-		print(members)
+def affinity_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterations = 5):
+        path_to_file = qt5_data.filepath.text()
+
+        all_color_list = list(colors.cnames.keys())
+        cell_color_list = ['r', 'g', 'b', 'orange', 'purple','m','y','k']+all_color_list
+        colors_to_remove = ['gray', 'white', 'oldlace', 'silver', 'lightgrey', 'grey', 'linen', 'snow', 'dimgray', 'slategray', 'dimgrey', 'lightslategrey', 'antiquewhite', 'beige']
+        cell_color_list = [color for color in cell_color_list if color not in colors_to_remove]
+
+        communities_below_min = True
+        cluster_iterations = 0
+
+        symbols = top_matrix_cell.columns.tolist()
+        gl_cell, embedding_cell, names_cell = make_graphlasso(top_matrix_cell, top_matrix_cell.columns.tolist())
+        labels = dict( zip( range( len(symbols) ), symbols) )
+        prec_sp = gl_cell.precision_
+        matrix1 = -prec_sp + np.diag( np.diagonal( prec_sp) )
+        G = nx.Graph( matrix1)
+        ap = cluster.AffinityPropagation()
+        ap.fit( gl_cell.covariance_ )
+        labels = np.array(  ap.labels_ )
+        node_colors = [cell_color_list[i] for i in ap.labels_]
+        communities_below_min = False
+        good_communities = []
+        print("Affinity cluster")
+        for i in set(ap.labels_):
+            print("Community: ",i)
+            members = [ symbols[node] for node in np.nonzero( labels == i)[0]]
+            print(members)
+            if len(members) <=min_cluster_size:
+                communities_below_min = True
+            else:
+                good_communities.extend(members)
+        if communities_below_min:
+            cluster_iterations +=1
+            if cluster_iterations < max_iterations:
+                affinity_cluster(top_matrix_cell[good_communities], qt5_data)
+            else:
+                save_network_graph(matrix1, names_cell, os.path.join(os.path.dirname(path_to_file),"affinity_cell.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=find_node_weight(top_matrix_cell,names_cell),node_color=node_colors, weight = lambda x: abs(5*x)**(2.5))
+        else:
+            save_network_graph(matrix1, names_cell, os.path.join(os.path.dirname(path_to_file),"affinity_cell.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=find_node_weight(top_matrix_cell,names_cell),node_color=node_colors, weight = lambda x: abs(5*x)**(2.5))
 #community_cluster(gl.covariance_, top_pca_genes)
 #affinity_cluster(gl.covariance_, final_gene_list)

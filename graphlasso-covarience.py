@@ -19,6 +19,7 @@ def main():
     plot_networks(gl_gene, embedding_gene, names_gene, node_weights_gene, qt5_data)
     plot_networks(gl_cell, embedding_cell, names_cell, node_weights_cell, qt5_data, gene_matrix=False)
     community_cluster(top_matrix_cell,qt5_data)
+    affinity_cluster(top_matrix_cell,qt5_data)
 
 
 if __name__ == '__main__':
