@@ -256,7 +256,8 @@ def plot_networks(gl, embedding, names, node_weights, qt5_data, gene_matrix=True
     save_network_graph( gl.covariance_, names, os.path.join(os.path.dirname(path_to_file),"cov_diagram_"+fig_type+".pdf"), node_weight=node_weights, title="cov_test", scale = 8, layout = "spring" )
     save_network_graph( gl.precision_, names, os.path.join(os.path.dirname(path_to_file),"precision_"+fig_type+".pdf") , title="Precision Matrix Network", layout="spring", node_weight= node_weights)
 
-def community_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterations = 5):
+def community_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterations = 5, cluster_iterations = 0):
+    print('Cluster iteration: '+str(cluster_iterations))
     path_to_file = qt5_data.filepath.text()
 
     all_color_list = list(colors.cnames.keys())
@@ -265,7 +266,6 @@ def community_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterati
     cell_color_list = [color for color in cell_color_list if color not in colors_to_remove]
 
     communities_below_min = True
-    cluster_iterations = 0
 
     symbols = top_matrix_cell.columns.tolist()
     gl_cell, embedding_cell, names_cell = make_graphlasso(top_matrix_cell, top_matrix_cell.columns.tolist())
@@ -278,9 +278,14 @@ def community_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterati
     node_colors = [cell_color_list[i] for i in values]
     communities_below_min = False
     good_communities = []
+    cell_label_dict = {"SampleID":[], "GroupID":[]}
     for i in set(partition.values() ):
+        group_label = "Community_"+str(i)
         print("Community: ",i)
         members = [ symbols[node] for node  in partition.keys() if partition[node] == i]
+        cell_label_dict["SampleID"].extend(members)
+
+        cell_label_dict["GroupID"].extend([group_label for i in range(len(members))])
         print(members)
         if len(members) <=min_cluster_size:
             communities_below_min = True
@@ -289,14 +294,21 @@ def community_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterati
     if communities_below_min:
         cluster_iterations +=1
         if cluster_iterations < max_iterations:
-            community_cluster(top_matrix_cell[good_communities], qt5_data)
+            community_cluster(top_matrix_cell[good_communities], qt5_data, cluster_iterations = cluster_iterations)
         else:
+            cell_label_df = pd.DataFrame(cell_label_dict)
+            cell_label_df_indexed = cell_label_df.set_index('SampleID')
+            cell_label_df_indexed.to_csv(os.path.join(os.path.dirname(path_to_file),"community_cluster_cell_groups.txt"), sep="\t")
             save_network_graph(matrix1, names_cell, os.path.join(os.path.dirname(path_to_file),"community_cell.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=find_node_weight(top_matrix_cell,names_cell),node_color=node_colors, weight = lambda x: abs(5*x)**(2.5))
     else:
+        cell_label_df = pd.DataFrame(cell_label_dict)
+        cell_label_df_indexed = cell_label_df.set_index('SampleID')
+        cell_label_df_indexed.to_csv(os.path.join(os.path.dirname(path_to_file),"community_cluster_cell_groups.txt"), sep="\t")
         save_network_graph(matrix1, names_cell, os.path.join(os.path.dirname(path_to_file),"community_cell.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=find_node_weight(top_matrix_cell,names_cell),node_color=node_colors, weight = lambda x: abs(5*x)**(2.5))
 
 
-def affinity_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterations = 5):
+def affinity_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iterations = 5, cluster_iterations = 0):
+        print('Cluster iteration: '+str(cluster_iterations))
         path_to_file = qt5_data.filepath.text()
 
         all_color_list = list(colors.cnames.keys())
@@ -305,7 +317,7 @@ def affinity_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iteratio
         cell_color_list = [color for color in cell_color_list if color not in colors_to_remove]
 
         communities_below_min = True
-        cluster_iterations = 0
+
 
         symbols = top_matrix_cell.columns.tolist()
         gl_cell, embedding_cell, names_cell = make_graphlasso(top_matrix_cell, top_matrix_cell.columns.tolist())
@@ -319,11 +331,16 @@ def affinity_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iteratio
         node_colors = [cell_color_list[i] for i in ap.labels_]
         communities_below_min = False
         good_communities = []
+        cell_label_dict = {"SampleID":[], "GroupID":[]}
         print("Affinity cluster")
         for i in set(ap.labels_):
+            group_label = "Community_"+str(i)
             print("Community: ",i)
             members = [ symbols[node] for node in np.nonzero( labels == i)[0]]
             print(members)
+            cell_label_dict["SampleID"].extend(members)
+
+            cell_label_dict["GroupID"].extend([group_label for i in range(len(members))])
             if len(members) <=min_cluster_size:
                 communities_below_min = True
             else:
@@ -331,10 +348,14 @@ def affinity_cluster(top_matrix_cell, qt5_data, min_cluster_size=5, max_iteratio
         if communities_below_min:
             cluster_iterations +=1
             if cluster_iterations < max_iterations:
-                affinity_cluster(top_matrix_cell[good_communities], qt5_data)
+                affinity_cluster(top_matrix_cell[good_communities], qt5_data, cluster_iterations = cluster_iterations)
             else:
+                cell_label_df = pd.DataFrame(cell_label_dict)
+                cell_label_df_indexed = cell_label_df.set_index('SampleID')
+                cell_label_df_indexed.to_csv(os.path.join(os.path.dirname(path_to_file),"affinity_cluster_cell_groups.txt"), sep="\t")
                 save_network_graph(matrix1, names_cell, os.path.join(os.path.dirname(path_to_file),"affinity_cell.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=find_node_weight(top_matrix_cell,names_cell),node_color=node_colors, weight = lambda x: abs(5*x)**(2.5))
         else:
+            cell_label_df = pd.DataFrame(cell_label_dict)
+            cell_label_df_indexed = cell_label_df.set_index('SampleID')
+            cell_label_df_indexed.to_csv(os.path.join(os.path.dirname(path_to_file),"affinity_cluster_cell_groups.txt"), sep="\t")
             save_network_graph(matrix1, names_cell, os.path.join(os.path.dirname(path_to_file),"affinity_cell.pdf"), title="spring_sp_prec_test",layout="spring", scale= 10, node_weight=find_node_weight(top_matrix_cell,names_cell),node_color=node_colors, weight = lambda x: abs(5*x)**(2.5))
-#community_cluster(gl.covariance_, top_pca_genes)
-#affinity_cluster(gl.covariance_, final_gene_list)
